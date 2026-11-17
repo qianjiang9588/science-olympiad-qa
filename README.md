@@ -35,3 +35,24 @@ For a browser interface, start the local service:
 Open `http://127.0.0.1:8765/`, enter text, and click **Generate embedding**. The service loads the model once, then runs inference locally. Stop it with `Ctrl+C` in the terminal.
 
 To index the saved pages into local Qdrant, first preview the chunk count with `HF_HUB_OFFLINE=1 .venv/bin/python data_crawl/index_saved_pages.py --dry-run`, then run `HF_HUB_OFFLINE=1 .venv/bin/python data_crawl/index_saved_pages.py`. This creates or reuses `mineralogy_chunks_v1`, uses 500-token section-aware chunks with approximately 70-token overlap, and upserts normalized 1,024-dimensional BGE-M3 vectors with source metadata.
+
+### Inspect the Qdrant collection
+
+With the local Qdrant service running at `127.0.0.1:6333`, inspect collection status, vector configuration, and point count:
+
+```sh
+curl -fsS http://127.0.0.1:6333/collections/mineralogy_chunks_v1 | python3 -m json.tool
+```
+
+To view a few stored chunks and their source metadata without returning the vector values:
+
+```sh
+curl -fsS -X POST http://127.0.0.1:6333/collections/mineralogy_chunks_v1/points/scroll \
+  -H 'Content-Type: application/json' \
+  -d '{"limit":3,"with_payload":["chapter_title","section_path","source_file","source_url","text"],"with_vector":false}' \
+  | python3 -m json.tool
+```
+
+The scroll endpoint returns points in pages. Use the response's `next_page_offset` as the `offset` in the next request to continue through the collection. The current collection has 1,070 points; the count changes if the saved pages are re-indexed.
+
+Qdrant normally provides a Web UI at `http://127.0.0.1:6333/dashboard`. The standalone binary used for this local setup does not include the dashboard's static files, so use the REST commands above to inspect this instance.
